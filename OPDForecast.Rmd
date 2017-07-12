@@ -1,0 +1,60 @@
+---
+title: "Forecast Number of OPD Patients"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+if (!"install.load" %in% rownames(installed.packages()))
+  install.packages("install.load")
+library(install.load)
+if (!"devtools" %in% rownames(installed.packages()))
+  install.packages("devtools")
+library(devtools)
+if (!"DBI" %in% rownames(installed.packages())) 
+  devtools::install_github("rstats-db/DBI")
+if (!"pool" %in% rownames(installed.packages())) 
+  devtools::install_github("rstudio/pool")
+library(DBI)
+library(pool)
+#install the required packages
+pkgs_to_install_load <- c("RMySQL","tidyverse", "scales","data.table", "lubridate")
+sapply(pkgs_to_install_load,install_load)
+source("UtilityFunctions.R")
+pool <- dbPool(
+  drv = RMySQL::MySQL(),
+  dbname = "openmrs",
+  host = "localhost",
+  username = "root",
+  password = ""
+)
+opd.visits <- pool %>% 
+              tbl(sql("select t1.date_started, t3.birthdate, t3.gender  from visit t1 
+                  inner join visit_attribute t2 
+                  on t1.visit_id = t2.visit_id and 
+                  t2.attribute_type_id = 4 
+                  and t2.value_reference = 'OPD' 
+                  INNER JOIN person t3 on t1.patient_id = t3.person_id where t1.date_started >= '2015-04-01' and t1.voided = 0 AND t3.voided = 0 AND t2.voided=0")) %>% 
+              collect(n = Inf) %>% 
+              mutate(gender = factor(gender),
+                     date_started = ymd_hms(date_started),
+                     birthdate = ymd(birthdate),
+                     Age = age(from=birthdate, to=Sys.Date()),
+                     Age.Category = factor(case_when(
+                                    Age >=0 & Age<= 14 ~ "Children",
+                                    Age >= 15 & Age <= 24 ~ "Youth",
+                                    Age >= 25 & Age <= 64 ~ "Adults",
+                                    T ~ "Seniors"), 
+                                    ordered = T, levels = c("Children", "Youth", "Adults", "Seniors")
+                                    ),
+                     WeekDay = wday(date_started, label = T, abbr = T)
+                     )
+opd.visits %>% ggplot(aes(WeekDay)) + geom_bar(aes(fill=gender), position="dodge") + facet_wrap(~Age.Category) 
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
