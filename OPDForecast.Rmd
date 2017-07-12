@@ -24,6 +24,9 @@ library(pool)
 pkgs_to_install_load <- c("RMySQL","tidyverse", "scales","data.table", "lubridate")
 sapply(pkgs_to_install_load,install_load)
 source("UtilityFunctions.R")
+```
+
+```{r}
 pool <- dbPool(
   drv = RMySQL::MySQL(),
   dbname = "openmrs",
@@ -38,7 +41,11 @@ opd.visits <- pool %>%
                   t2.attribute_type_id = 4 
                   and t2.value_reference = 'OPD' 
                   INNER JOIN person t3 on t1.patient_id = t3.person_id where t1.date_started >= '2015-04-01' and t1.voided = 0 AND t3.voided = 0 AND t2.voided=0")) %>% 
-              collect(n = Inf) %>% 
+              collect(n = Inf) 
+```
+
+```{r}
+opd.visits <- opd.visits %>% 
               mutate(gender = factor(gender),
                      date_started = ymd_hms(date_started),
                      birthdate = ymd(birthdate),
@@ -52,7 +59,14 @@ opd.visits <- pool %>%
                                     ),
                      WeekDay = wday(date_started, label = T, abbr = T)
                      )
+```
+
+```{r}
 opd.visits %>% ggplot(aes(WeekDay)) + geom_bar(aes(fill=gender), position="dodge") + facet_wrap(~Age.Category) 
+```
+
+```{r}
+opd.visits %>% group_by(Age.Category, gender, WeekDay) %>% summarise(Count = n())
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
